@@ -48,7 +48,7 @@ url = 'http://mattmahoney.net/dc/text8.zip'
 data_path = 'text8.zip'
 if not os.path.exists(data_path):
     print("Downloading the dataset... (It may take some time)")
-    filename, _ = urllib.urlretrieve(url, data_path)
+    filename, _ = urllib.request.urlretrieve(url, data_path)
     print("Done!")
 # Unzip the dataset file. Text has already been processed
 with zipfile.ZipFile(data_path) as f:
@@ -168,7 +168,7 @@ with tf.Session() as sess:
     x_test = np.array([word2id[w] for w in eval_words])
 
     average_loss = 0
-    for step in xrange(1, num_steps + 1):
+    for step in range(1, num_steps + 1):
         # Get a new batch of data
         batch_x, batch_y = next_batch(batch_size, num_skips, skip_window)
         # Run training op
@@ -186,10 +186,10 @@ with tf.Session() as sess:
         if step % eval_step == 0 or step == 1:
             print("Evaluation...")
             sim = sess.run(cosine_sim_op, feed_dict={X: x_test})
-            for i in xrange(len(eval_words)):
+            for i in range(len(eval_words)):
                 top_k = 8  # number of nearest neighbors
                 nearest = (-sim[i, :]).argsort()[1:top_k + 1]
                 log_str = '"%s" nearest neighbors:' % eval_words[i]
-                for k in xrange(top_k):
+                for k in range(top_k):
                     log_str = '%s %s,' % (log_str, id2word[nearest[k]])
                 print(log_str)
