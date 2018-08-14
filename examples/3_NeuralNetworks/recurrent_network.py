@@ -64,7 +64,7 @@ def RNN(x, weights, biases):
     lstm_cell = rnn.BasicLSTMCell(num_hidden, forget_bias=1.0)
 
     # Get lstm cell output
-    outputs, states = rnn.static_rnn(lstm_cell, x, dtype=tf.float32)
+    outputs, _ = rnn.static_rnn(lstm_cell, x, dtype=tf.float32)
 
     # Linear activation, using rnn inner loop last output
     return tf.matmul(outputs[-1], weights['out']) + biases['out']
