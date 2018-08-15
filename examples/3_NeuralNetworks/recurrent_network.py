@@ -33,10 +33,10 @@ batch_size = 128
 display_step = 200
 
 # Network Parameters
-num_input = 28 # MNIST data input (img shape: 28*28)
-timesteps = 28 # timesteps
-num_hidden = 128 # hidden layer num of features
-num_classes = 10 # MNIST total classes (0-9 digits)
+num_input = 28  # MNIST data input (img shape: 28*28)
+timesteps = 28  # timesteps
+num_hidden = 128  # hidden layer num of features
+num_classes = 10  # MNIST total classes (0-9 digits)
 
 # tf Graph input
 X = tf.placeholder("float", [None, timesteps, num_input])
@@ -44,6 +44,7 @@ Y = tf.placeholder("float", [None, num_classes])
 
 # Define weights
 weights = {
+    # 128 rows, 10 cols
     'out': tf.Variable(tf.random_normal([num_hidden, num_classes]))
 }
 biases = {
@@ -68,6 +69,7 @@ def RNN(x, weights, biases):
 
     # Linear activation, using rnn inner loop last output
     return tf.matmul(outputs[-1], weights['out']) + biases['out']
+
 
 logits = RNN(X, weights, biases)
 prediction = tf.nn.softmax(logits)
@@ -101,15 +103,16 @@ with tf.Session() as sess:
             # Calculate batch loss and accuracy
             loss, acc = sess.run([loss_op, accuracy], feed_dict={X: batch_x,
                                                                  Y: batch_y})
-            print("Step " + str(step) + ", Minibatch Loss= " + \
-                  "{:.4f}".format(loss) + ", Training Accuracy= " + \
+            print("Step " + str(step) + ", Minibatch Loss= " +
+                  "{:.4f}".format(loss) + ", Training Accuracy= " +
                   "{:.3f}".format(acc))
 
     print("Optimization Finished!")
 
     # Calculate accuracy for 128 mnist test images
     test_len = 128
-    test_data = mnist.test.images[:test_len].reshape((-1, timesteps, num_input))
+    test_data = mnist.test.images[:test_len].reshape(
+        (-1, timesteps, num_input))
     test_label = mnist.test.labels[:test_len]
-    print("Testing Accuracy:", \
-        sess.run(accuracy, feed_dict={X: test_data, Y: test_label}))
+    print("Testing Accuracy:",
+          sess.run(accuracy, feed_dict={X: test_data, Y: test_label}))
