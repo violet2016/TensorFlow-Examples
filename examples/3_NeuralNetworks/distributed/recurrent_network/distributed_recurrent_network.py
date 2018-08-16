@@ -41,7 +41,6 @@ import os
 import sys
 import tempfile
 import time
-import env
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.contrib import rnn

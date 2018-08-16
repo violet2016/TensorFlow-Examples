@@ -12,7 +12,7 @@ spec:
           containers:
             - name: tensorflow
               image: hanacolor/tf-dist-recurrent-network:1.0
-              imagePullPolicy: Never
+              imagePullPolicy: Always
     Worker:
       replicas: 2
       restartPolicy: Never
@@ -21,4 +21,4 @@ spec:
           containers:
             - name: tensorflow
               image: hanacolor/tf-dist-recurrent-network:1.0
-              imagePullPolicy: Never
+              imagePullPolicy: Always
