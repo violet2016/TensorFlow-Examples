@@ -1,51 +1,24 @@
-# Copyright 2016 The TensorFlow Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-"""Distributed MNIST training and validation, with model replicas.
+""" Convolutional Neural Network.
 
-A simple softmax model with one hidden layer is defined. The parameters
-(weights and biases) are located on one parameter server (ps), while the ops
-are executed on two worker nodes by default. The TF sessions also run on the
-worker node.
-Multiple invocations of this script can be done in parallel, with different
-values for --task_index. There should be exactly one invocation with
---task_index, which will create a master session that carries out variable
-initialization. The other, non-master, sessions will wait for the master
-session to finish the initialization before proceeding to the training stage.
+Build and train a distributed convolutional neural network with TensorFlow.
+This example is using the MNIST database of handwritten digits
+(http://yann.lecun.com/exdb/mnist/)
 
-The coordination between the multiple worker invocations occurs due to
-the definition of the parameters on the same ps devices. The parameter updates
-from one worker is visible to all other workers. As such, the workers can
-perform forward computation and gradient calculation in parallel, which
-should lead to increased training speed for the simple model.
+Author: Violet Cheng
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import division, print_function, absolute_import
 
+import tensorflow as tf
 import json
-import math
 import os
 import sys
 import tempfile
 import time
-import env
-import tensorflow as tf
+# Import MNIST data
 from tensorflow.examples.tutorials.mnist import input_data
-# 1. All flags
-# We could move the flags to a separate file
+
+
 flags = tf.app.flags
 flags.DEFINE_string("data_dir", "/tmp/mnist-data",
                     "Directory for storing mnist data")
@@ -64,9 +37,9 @@ flags.DEFINE_integer("replicas_to_aggregate", None,
                      "num_workers)")
 flags.DEFINE_integer("hidden_units", 100,
                      "Number of units in the hidden layer of the NN")
-flags.DEFINE_integer("train_steps", 20000,
+flags.DEFINE_integer("train_steps", 1000,
                      "Number of (global) training steps to perform")
-flags.DEFINE_integer("batch_size", 100, "Training batch size")
+flags.DEFINE_integer("batch_size", 128, "Training batch size")
 flags.DEFINE_float("learning_rate", 0.01, "Learning rate")
 flags.DEFINE_boolean(
     "sync_replicas", False,
@@ -86,12 +59,65 @@ flags.DEFINE_string("job_name", None, "job name: worker or ps")
 
 FLAGS = flags.FLAGS
 
+# globals
 IMAGE_PIXELS = 28
+
+learning_rate = 0.001
+training_steps = 200
+batch_size = 128
+display_step = 10
+
+
+num_input = IMAGE_PIXELS * IMAGE_PIXELS
+num_classes = 10
+dropout = 0.75
+
+
+# Create some wrappers for simplicity
+def conv2d(x, W, b, strides=1):
+    # Conv2D wrapper, with bias and relu activation
+    x = tf.nn.conv2d(x, W, strides=[1, strides, strides, 1], padding='SAME')
+    x = tf.nn.bias_add(x, b)
+    return tf.nn.relu(x)
+
+
+def maxpool2d(x, k=2):
+    # MaxPool2D wrapper
+    return tf.nn.max_pool(x, ksize=[1, k, k, 1], strides=[1, k, k, 1],
+                          padding='SAME')
+
+
+# Create model
+def conv_net(x, weights, biases, dropout):
+    # MNIST data input is a 1-D vector of 784 features (28*28 pixels)
+    # Reshape to match picture format [Height x Width x Channel]
+    # Tensor input become 4-D: [Batch Size, Height, Width, Channel]
+    x = tf.reshape(x, shape=[-1, 28, 28, 1])
+
+    # Convolution Layer
+    conv1 = conv2d(x, weights['wc1'], biases['bc1'])
+    # Max Pooling (down-sampling)
+    conv1 = maxpool2d(conv1, k=2)
+
+    # Convolution Layer
+    conv2 = conv2d(conv1, weights['wc2'], biases['bc2'])
+    # Max Pooling (down-sampling)
+    conv2 = maxpool2d(conv2, k=2)
+
+    # Fully connected layer
+    # Reshape conv2 output to fit fully connected layer input
+    fc1 = tf.reshape(conv2, [-1, weights['wd1'].get_shape().as_list()[0]])
+    fc1 = tf.add(tf.matmul(fc1, weights['wd1']), biases['bd1'])
+    fc1 = tf.nn.relu(fc1)
+    # Apply Dropout
+    fc1 = tf.nn.dropout(fc1, dropout)
+
+    # Output, class prediction
+    out = tf.add(tf.matmul(fc1, weights['out']), biases['out'])
+    return out
 
 
 def main(unused_argv):
-    # 2. tf config envrionment variables
-
     # Parse environment variable TF_CONFIG to get job_name and task_index
 
     # If not explicitly specified in the constructor and the TF_CONFIG
@@ -103,7 +129,7 @@ def main(unused_argv):
 
     FLAGS.job_name = task_type
     FLAGS.task_index = task_index
-    # 3. input dataset
+
     mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
     if FLAGS.download_only:
         sys.exit(0)
@@ -115,7 +141,7 @@ def main(unused_argv):
 
     print("job name = %s" % FLAGS.job_name)
     print("task index = %d" % FLAGS.task_index)
-    # 4. generate ClusterSpec
+
     cluster_config = tf_config.get('cluster', {})
     ps_hosts = cluster_config.get('ps')
     worker_hosts = cluster_config.get('worker')
@@ -135,7 +161,6 @@ def main(unused_argv):
 
     cluster = tf.train.ClusterSpec({"ps": ps_spec, "worker": worker_spec})
 
-    # 5. create server for job
     if not FLAGS.existing_servers:
         # Not using existing servers. Create an in-process server.
         server = tf.train.Server(
@@ -162,37 +187,38 @@ def main(unused_argv):
             ps_device="/job:ps/cpu:0",
             cluster=cluster)):
         global_step = tf.Variable(0, name="global_step", trainable=False)
-        # 6. Define variables for training
 
-        # Variables of the hidden layer
-        hid_w = tf.Variable(
-            tf.truncated_normal(
-                [IMAGE_PIXELS * IMAGE_PIXELS, FLAGS.hidden_units],
-                stddev=1.0 / IMAGE_PIXELS),
-            name="hid_w")
-        hid_b = tf.Variable(tf.zeros([FLAGS.hidden_units]), name="hid_b")
+        # Store layers weight & bias
+        weights = {
+            # 5x5 conv, 1 input, 32 outputs
+            'wc1': tf.Variable(tf.random_normal([5, 5, 1, 32])),
+            # 5x5 conv, 32 inputs, 64 outputs
+            'wc2': tf.Variable(tf.random_normal([5, 5, 32, 64])),
+            # fully connected, 7*7*64 inputs, 1024 outputs
+            'wd1': tf.Variable(tf.random_normal([7*7*64, 1024])),
+            # 1024 inputs, 10 outputs (class prediction)
+            'out': tf.Variable(tf.random_normal([1024, num_classes]))
+        }
 
-        # Variables of the softmax layer
-        sm_w = tf.Variable(
-            tf.truncated_normal(
-                [FLAGS.hidden_units, 10],
-                stddev=1.0 / math.sqrt(FLAGS.hidden_units)),
-            name="sm_w")
-        sm_b = tf.Variable(tf.zeros([10]), name="sm_b")
+        biases = {
+            'bc1': tf.Variable(tf.random_normal([32])),
+            'bc2': tf.Variable(tf.random_normal([64])),
+            'bd1': tf.Variable(tf.random_normal([1024])),
+            'out': tf.Variable(tf.random_normal([num_classes]))
+        }
+        # tf Graph input need in "with device"
+        X = tf.placeholder(tf.float32, [None, num_input])
+        Y = tf.placeholder(tf.float32, [None, num_classes])
+        keep_prob = tf.placeholder(tf.float32)  # dropout (keep probability)
 
-        # Training Ops: located on the worker specified with FLAGS.task_index
-        x = tf.placeholder(tf.float32, [None, IMAGE_PIXELS * IMAGE_PIXELS])
-        y_ = tf.placeholder(tf.float32, [None, 10])
+        # Construct model
+        logits = conv_net(X, weights, biases, keep_prob)
+        prediction = tf.nn.softmax(logits)
 
-        hid_lin = tf.nn.xw_plus_b(x, hid_w, hid_b)
-        hid = tf.nn.relu(hid_lin)
-
-        y = tf.nn.softmax(tf.nn.xw_plus_b(hid, sm_w, sm_b))
-        cross_entropy = - \
-            tf.reduce_sum(y_ * tf.log(tf.clip_by_value(y, 1e-10, 1.0)))
-
-        # 7. define optimizer
-        opt = tf.train.AdamOptimizer(FLAGS.learning_rate)
+        # Define loss and optimizer
+        loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+            logits=logits, labels=Y))
+        opt = tf.train.AdamOptimizer(learning_rate=learning_rate)
 
         if FLAGS.sync_replicas:
             if FLAGS.replicas_to_aggregate is None:
@@ -206,7 +232,7 @@ def main(unused_argv):
                 total_num_replicas=num_workers,
                 name="mnist_sync_replicas")
 
-        train_step = opt.minimize(cross_entropy, global_step=global_step)
+        train_op = opt.minimize(loss_op, global_step=global_step)
 
         # supervisor's ops
         if FLAGS.sync_replicas:
@@ -220,6 +246,11 @@ def main(unused_argv):
             chief_queue_runner = opt.get_chief_queue_runner()
             sync_init_op = opt.get_init_tokens_op()
 
+        # Evaluate model
+        correct_pred = tf.equal(tf.argmax(prediction, 1), tf.argmax(Y, 1))
+        accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+
+        # Initialize the variables (i.e. assign their default value)
         init_op = tf.global_variables_initializer()
         train_dir = tempfile.mkdtemp()
         # Supervisor for distributed training
@@ -279,15 +310,18 @@ def main(unused_argv):
         while True:
             # Training feed
             # put your data and train op here
-            batch_xs, batch_ys = mnist.train.next_batch(FLAGS.batch_size)
-            train_feed = {x: batch_xs, y_: batch_ys}
-
-            _, step = sess.run([train_step, global_step], feed_dict=train_feed)
+            batch_xs, batch_ys = mnist.train.next_batch(batch_size)
+            _, step = sess.run([train_op, global_step],
+                               feed_dict={X: batch_xs, Y: batch_ys, keep_prob: 0.8})
             local_step += 1
 
             now = time.time()
-            print("%f: Worker %d: training step %d done (global step: %d)" %
-                  (now, FLAGS.task_index, local_step, step))
+            if local_step % display_step == 0:
+                loss, acc = sess.run([loss_op, accuracy], feed_dict={X: batch_xs,
+                                                                     Y: batch_ys, keep_prob: 1.0})
+
+                print("%f: Worker %d: training step %d done (global step: %d) Minibatch Loss=%.4f Accuracy=%.3f" %
+                      (now, FLAGS.task_index, local_step, step, loss, acc))
 
             if step >= FLAGS.train_steps:
                 break
@@ -298,12 +332,12 @@ def main(unused_argv):
         print("Training elapsed time: %f s" % training_time)
 
         # Validation feed
-        val_feed = {x: mnist.validation.images, y_: mnist.validation.labels}
-        val_xent = sess.run(cross_entropy, feed_dict=val_feed)
-        print("After %d training step(s), validation cross entropy = %g" %
-              (FLAGS.train_steps, val_xent))
+        test_len = 128
+        test_data = mnist.test.images[:test_len]
+        test_label = mnist.test.labels[:test_len]
+        print("Testing Accuracy:",
+              sess.run(accuracy, feed_dict={X: test_data, Y: test_label, keep_prob: 1.0}))
 
 
-# call main
 if __name__ == "__main__":
     tf.app.run()

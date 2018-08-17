@@ -1,0 +1,24 @@
+apiVersion: "kubeflow.org/v1alpha2"
+kind: "TFJob"
+metadata:
+  name: "dist-convolutional-network"
+spec:
+  tfReplicaSpecs:
+    PS:
+      replicas: 2
+      restartPolicy: Never
+      template:
+        spec:
+          containers:
+            - name: tensorflow
+              image: hanacolor/tf-dist-convolutional-network:1.0
+              imagePullPolicy: Always
+    Worker:
+      replicas: 2
+      restartPolicy: Never
+      template:
+        spec:
+          containers:
+            - name: tensorflow
+              image: hanacolor/tf-dist-convolutional-network:1.0
+              imagePullPolicy: Always
