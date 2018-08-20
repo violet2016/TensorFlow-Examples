@@ -87,10 +87,8 @@ FLAGS = flags.FLAGS
 
 # globals
 IMAGE_PIXELS = 28
-num_epochs = 1000
 
 learning_rate = 0.001
-training_steps = 10000
 batch_size = 128
 display_step = 50
 

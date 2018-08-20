@@ -6,6 +6,8 @@ This example is using the MNIST database of handwritten digits
 
 Author: Aymeric Damien
 Project: https://github.com/aymericdamien/TensorFlow-Examples/
+
+广泛用于图像识别
 """
 
 from __future__ import division, print_function, absolute_import
@@ -23,14 +25,14 @@ batch_size = 128
 display_step = 10
 
 # Network Parameters
-num_input = 784 # MNIST data input (img shape: 28*28)
-num_classes = 10 # MNIST total classes (0-9 digits)
-dropout = 0.75 # Dropout, probability to keep units
+num_input = 784  # MNIST data input (img shape: 28*28)
+num_classes = 10  # MNIST total classes (0-9 digits)
+dropout = 0.75  # Dropout, probability to keep units
 
 # tf Graph input
 X = tf.placeholder(tf.float32, [None, num_input])
 Y = tf.placeholder(tf.float32, [None, num_classes])
-keep_prob = tf.placeholder(tf.float32) # dropout (keep probability)
+keep_prob = tf.placeholder(tf.float32)  # dropout (keep probability)
 
 
 # Create some wrappers for simplicity
@@ -41,6 +43,8 @@ def conv2d(x, W, b, strides=1):
     return tf.nn.relu(x)
 
 
+# 池化层夹在连续的卷积层中间， 用于压缩数据和参数的量，减小过拟合
+# use max_pool, get the max value of k*k matrix as the value
 def maxpool2d(x, k=2):
     # MaxPool2D wrapper
     return tf.nn.max_pool(x, ksize=[1, k, k, 1], strides=[1, k, k, 1],
@@ -52,6 +56,11 @@ def conv_net(x, weights, biases, dropout):
     # MNIST data input is a 1-D vector of 784 features (28*28 pixels)
     # Reshape to match picture format [Height x Width x Channel]
     # Tensor input become 4-D: [Batch Size, Height, Width, Channel]
+    #  a channel in this case is extended to be the grayscale image based on
+    # any such conventional primary color.
+    # By extension, a channel is any grayscale image with the same size
+    # as the "proper" image, and associated with it.
+    # channel可以用来表示灰度/透明度等等
     x = tf.reshape(x, shape=[-1, 28, 28, 1])
 
     # Convolution Layer
@@ -76,11 +85,12 @@ def conv_net(x, weights, biases, dropout):
     out = tf.add(tf.matmul(fc1, weights['out']), biases['out'])
     return out
 
+
 # Store layers weight & bias
 weights = {
-    # 5x5 conv, 1 input, 32 outputs
+    # 5x5 conv, 1 input, 32 outputs 卷积层第一个神经元
     'wc1': tf.Variable(tf.random_normal([5, 5, 1, 32])),
-    # 5x5 conv, 32 inputs, 64 outputs
+    # 5x5 conv, 32 inputs, 64 outputs 卷积层第二个神经元
     'wc2': tf.Variable(tf.random_normal([5, 5, 32, 64])),
     # fully connected, 7*7*64 inputs, 1024 outputs
     'wd1': tf.Variable(tf.random_normal([7*7*64, 1024])),
@@ -128,14 +138,14 @@ with tf.Session() as sess:
             loss, acc = sess.run([loss_op, accuracy], feed_dict={X: batch_x,
                                                                  Y: batch_y,
                                                                  keep_prob: 1.0})
-            print("Step " + str(step) + ", Minibatch Loss= " + \
-                  "{:.4f}".format(loss) + ", Training Accuracy= " + \
+            print("Step " + str(step) + ", Minibatch Loss= " +
+                  "{:.4f}".format(loss) + ", Training Accuracy= " +
                   "{:.3f}".format(acc))
 
     print("Optimization Finished!")
 
     # Calculate accuracy for 256 MNIST test images
-    print("Testing Accuracy:", \
-        sess.run(accuracy, feed_dict={X: mnist.test.images[:256],
-                                      Y: mnist.test.labels[:256],
-                                      keep_prob: 1.0}))
+    print("Testing Accuracy:",
+          sess.run(accuracy, feed_dict={X: mnist.test.images[:256],
+                                        Y: mnist.test.labels[:256],
+                                        keep_prob: 1.0}))
