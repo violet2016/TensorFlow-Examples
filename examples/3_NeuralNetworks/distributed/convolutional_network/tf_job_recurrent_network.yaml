@@ -11,6 +11,10 @@ spec:
         spec:
           containers:
             - name: tensorflow
+              args:
+                - python
+                - /opt/distributed_convolutional_network.py
+                - --train_steps=1000
               image: hanacolor/tf-dist-convolutional-network:1.0
               imagePullPolicy: Always
     Worker:
@@ -20,5 +24,9 @@ spec:
         spec:
           containers:
             - name: tensorflow
+              args:
+                  - python
+                  - /opt/distributed_convolutional_network.py
+                  - --train_steps=1000
               image: hanacolor/tf-dist-convolutional-network:1.0
               imagePullPolicy: Always
