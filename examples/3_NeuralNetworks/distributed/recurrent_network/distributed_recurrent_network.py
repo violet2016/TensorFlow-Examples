@@ -124,7 +124,7 @@ def main(unused_argv):
 
     print("job name = %s" % FLAGS.job_name)
     print("task index = %d" % FLAGS.task_index)
-
+    print("total training steps are %d" % FLAGS.train_steps)
     cluster_config = tf_config.get('cluster', {})
     ps_hosts = cluster_config.get('ps')
     worker_hosts = cluster_config.get('worker')

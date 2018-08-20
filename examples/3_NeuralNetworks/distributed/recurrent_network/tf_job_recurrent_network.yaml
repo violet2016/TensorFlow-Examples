@@ -14,7 +14,7 @@ spec:
               args:
                 - python
                 - /opt/distributed_recurrent_network.py
-                - --train_steps = 2000
+                - --train_steps=2000
               image: hanacolor/tf-dist-recurrent-network:1.0
               imagePullPolicy: Always
     Worker:
@@ -27,6 +27,6 @@ spec:
               args:
                 - python
                 - /opt/distributed_recurrent_network.py
-                - --train_steps = 2000
+                - --train_steps=2000
               image: hanacolor/tf-dist-recurrent-network:1.0
               imagePullPolicy: Always
